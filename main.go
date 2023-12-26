@@ -106,9 +106,9 @@ func (cloud *CloudPoc) handleInput(input string) {
 func (cloud *CloudPoc) Help(args []string) {
 	color.White.Println("Available commands:")
 	color.White.Println("  help - Show this help message")
-	color.White.Println("  aws - Use aws module")
-	color.White.Println("    list - List available commands in aws module")
-	color.White.Println("    ec2 - use ec2 imds exploit module")
+	color.White.Println("  use - Use aws module")
+	color.White.Println("    aws/ec2/credential - use ec2 imds exploit module")
+	color.White.Println("    aws/ec2/screenshot - use ec2 screenshot exploit module")
 	color.White.Println("  quit - Exit the program")
 }
 
