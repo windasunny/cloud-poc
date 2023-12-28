@@ -14,6 +14,7 @@ type Ec2 struct {
 	AccessKeyId     string
 	SecretAccessKey string
 	Token           string
+	Region          string
 	SsrfUrl         string
 }
 
@@ -25,6 +26,7 @@ func NewEC2Module(url string) *Ec2 {
 		AccessKeyId:     "",
 		SecretAccessKey: "",
 		Token:           "",
+		Region:          "us-east-1",
 		SsrfUrl:         url,
 	}
 }

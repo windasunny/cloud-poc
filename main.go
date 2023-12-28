@@ -151,6 +151,15 @@ func (cloud *CloudPoc) Use(exploit string) {
 		ec2Exploit.SearchService()
 
 		break
+	case "aws/ec2/listpolicy":
+		printPrompt(cloud, exploit)
+		if ec2Exploit.AccessKeyId == "" && ec2Exploit.SecretAccessKey == "" {
+			color.Red.Println("Please use the 'aws/ec2/credential' module first.")
+			return
+		}
+
+		ec2Exploit.ListPolicy()
+		break
 	case "aws/ec2/screenshot":
 		printPrompt(cloud, exploit)
 
