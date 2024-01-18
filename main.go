@@ -1,13 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"reflect"
 	"strings"
 
 	"github.com/gookit/color"
-	"github.com/peterh/liner"
+	"github.com/spf13/cobra"
 
 	ec2 "github.com/windasunny/cloud-poc/module/aws/ec2"
 )
@@ -26,6 +27,36 @@ type awsCreds struct {
 
 var awsCredsInfo awsCreds
 var ec2Exploit *ec2.Ec2
+
+var rootCmd = &cobra.Command{
+	Use:   "cloudpoc",
+	Short: "Cloud POC tool",
+	Run: func(_ *cobra.Command, _ []string) {
+		cloud := NewCloudPoc()
+		cloud.asciiArt()
+		color.Cyan.Println("Welcome to Cloud Poc, which provides cloud POC. Type \"help\" to see the list of available commands.\n")
+		cloud.cmdLoop()
+	},
+}
+
+var helpCmd = &cobra.Command{
+	Use:   "help",
+	Short: "Show help message",
+	Run: func(_ *cobra.Command, args []string) {
+		cloud := NewCloudPoc()
+		cloud.Help(args)
+	},
+}
+
+var useCmd = &cobra.Command{
+	Use:   "use [module]",
+	Short: "Use a module",
+	Args:  cobra.ExactArgs(1),
+	Run: func(_ *cobra.Command, args []string) {
+		cloud := NewCloudPoc()
+		cloud.Use(args[0])
+	},
+}
 
 func NewCloudPoc() *CloudPoc {
 	return &CloudPoc{
@@ -177,33 +208,23 @@ func (cloud *CloudPoc) Use(exploit string) {
 }
 
 func (cloud *CloudPoc) cmdLoop() {
-	cloud.asciiArt()
-	color.Cyan.Println("Welcome to Cloud Poc, which provides cloud POC. Type \"help\" to see the list of available commands.\n")
-
-	line := liner.NewLiner()
-	defer line.Close()
-
-	line.SetCtrlCAborts(true)
+	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
 		color.Green.Print(cloud.prompt)
-		input, err := line.Prompt("")
-
-		if err == liner.ErrPromptAborted {
-			color.Green.Println("Exiting...")
-			break
-		} else if err != nil {
-			color.Red.Println("Error reading line:", err)
-			continue
-		}
-
-		line.AppendHistory(input)
+		scanner.Scan()
+		input := scanner.Text()
 
 		if strings.ToLower(input) == "quit" || strings.ToLower(input) == "exit" {
 			color.Green.Println("Exiting...")
 			break
 		}
+
 		cloud.handleInput(input)
+	}
+
+	if err := scanner.Err(); err != nil {
+		color.Red.Println("Error reading input:", err)
 	}
 }
 
@@ -212,7 +233,20 @@ func printPrompt(cloud *CloudPoc, exploit string) {
 	cloud.prompt = fmt.Sprintf("[Cloud Poc] >> [%s] >> ", cloud.exploit)
 }
 
+func init() {
+	rootCmd.PersistentFlags().StringVarP(&awsCredsInfo.Region, "region", "r", "", "AWS Region")
+	rootCmd.PersistentFlags().StringVarP(&awsCredsInfo.AccessKeyId, "access-key", "a", "", "AWS Access Key ID")
+	rootCmd.PersistentFlags().StringVarP(&awsCredsInfo.SecretAccessKey, "secret-key", "s", "", "AWS Secret Access Key")
+}
+
+func init() {
+	rootCmd.AddCommand(helpCmd)
+	rootCmd.AddCommand(useCmd)
+}
+
 func main() {
-	cloudPoc := NewCloudPoc()
-	cloudPoc.cmdLoop()
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
